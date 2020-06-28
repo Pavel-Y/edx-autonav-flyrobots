@@ -1,0 +1,1 @@
+Global positions of markers are known. So it is really a SLAM?
