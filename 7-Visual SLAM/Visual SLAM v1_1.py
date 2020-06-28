@@ -1,3 +1,5 @@
+# I just played with markers and the trajectory a bit
+
 import math
 import numpy as np
 from plot import plot, plot_trajectory, plot_covariance_2d
@@ -47,9 +49,9 @@ class State:
         
 class Controller:
     def __init__(self):
-        Kp_xy = 2.1
+        Kp_xy = 2.5 #2.1
         self.Kp_psi = 0.5
-        Kd_xy = 0.8
+        Kd_xy = 0.8 #0.8
         self.Kd_psi = 0.0
         
         self.Kp_lin = np.array([[Kp_xy, Kp_xy]]).T
@@ -130,6 +132,12 @@ class UserCode:
                         Beacon([tx+3.5, ty+0],False),
                         Beacon([tx+3.5, ty+1.5],False)
                         ]
+               
+        # new code                
+        self.markers = []
+        indices = [0, 2, 3, 6, 4, 7, 9, 11, 13, 16, 18, 15, 14]
+        for i in indices: 
+            self.markers.append(self.beacons[i].position)
     
         self.state_desired.position = np.array([self.beacons[0].position]).T
             #np.array([[mx+0.5],[my-1.5]])
@@ -139,9 +147,9 @@ class UserCode:
         place up to 30 markers in the world
         '''
         #TODO: Add your markers where needed
-        markers = []
-        for beacon in self.beacons:
-            markers.append(beacon.position)
+        return self.markers
+        #for beacon in self.beacons:
+        #    markers.append(beacon.position)
 
         return markers
         
@@ -179,8 +187,7 @@ class UserCode:
         
     def calculatePredictStateJacobian(self, dt, x, u_linear_velocity, u_yaw_velocity):
         '''
-        calculates the 3x3 Jacobian matrix (motion law Jacobian) for the state_callback function
-        in the EKF lecture it is called G instead of F here
+        calculates the 3x3 Jacobian matrix for the state_callback function
         '''
         s_yaw = math.sin(x[2])
         c_yaw = math.cos(x[2])
@@ -190,7 +197,7 @@ class UserCode:
         F = np.identity(3)
         F[0:2, 2] = dt * np.dot(dRotation_dYaw, u_linear_velocity)
                                    
-        return F 
+        return F
     
     def predictCovariance(self, sigma, F, Q):
         '''
@@ -202,7 +209,6 @@ class UserCode:
     def calculateKalmanGain(self, sigma_p, H, R):
         '''
         calculates the Kalman gain
-        H: Jacobian of non-linear observation function (marker observation depends on robot pose)
         '''
         return np.dot(np.dot(sigma_p, H.T), np.linalg.inv(np.dot(H, np.dot(sigma_p, H.T)) + R))       
         
@@ -236,8 +242,7 @@ class UserCode:
     
     def calculatePredictMeasurementJacobian(self, x, marker_position_world, marker_yaw_world):
         '''
-        calculates the 3x3 Jacobian matrix (matrix H in EKF lecture) of the predictMeasurement(...) 
-        function using the current state and
+        calculates the 3x3 Jacobian matrix of the predictMeasurement(...) function using the current state and
         the marker position and orientation in world coordinates
         
         :param x - current state 3x1 vector
@@ -292,6 +297,14 @@ class UserCode:
                     if (self.beacons[j].active == False):
                         self.state_desired.position = np.array([[self.beacons[j].position[0]],[self.beacons[j].position[1]]])
                         return
+                    
+    def marker_callback(self, i):
+        '''
+        called when a marker/beacon was activated. 
+        sets the next marker as the desired robot position
+        '''
+        if i+1 < len(self.markers):
+            self.state_desired.position = np.array([[self.markers[i+1][0]],[self.markers[i+1][1]]])
 
     def measurement_callback(self, marker_position_world, marker_yaw_world, marker_position_relative, marker_yaw_relative):
         '''
@@ -314,12 +327,20 @@ class UserCode:
         self.x = self.correctState(K, self.x, z, z_predicted)
         self.sigma = self.correctCovariance(self.sigma, K, H)
         
-        for beacon in self.beacons:
-            diff = self.x[0:2] - np.array([beacon.position]).T
+        # new code
+        for i, marker in enumerate(self.markers):
+            diff = self.x[0:2] - np.array([marker]).T
             norm = np.dot(diff.T, diff)
-            if norm[0] < 0.8 ** 2:  # 1 ** 2 is too big; L1 not tried
-                self.beacon_callback(beacon)
+            if norm[0] < 0.6 ** 2:  # 1 ** 2 is too big; L1 norm not tried
+                self.marker_callback(i)
                 break
+        
+        #for beacon in self.beacons:
+        #    diff = self.x[0:2] - np.array([beacon.position]).T
+        #    norm = np.dot(diff.T, diff)
+        #    if norm[0] < 0.8 ** 2:  # 1 ** 2 is too big; L1 not tried
+        #        self.beacon_callback(beacon)
+        #        break
             
             
         
