@@ -195,7 +195,8 @@ class UserCode:
     def predictCovariance(self, sigma, F, Q):
         '''
         predicts the next state covariance given the current covariance,
-        the Jacobian of the predictState(...) function F and the process noise Q
+        the Jacobian of the predictState(...) function F (was matrix G in EKF lecture) 
+        and the process noise Q
         '''
         return np.dot(F, np.dot(sigma, F.T)) + Q
     
